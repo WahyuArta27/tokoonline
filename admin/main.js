@@ -380,3 +380,88 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+// Add to cart function (updated version)
+function addToCart(productId, qty = 1) {
+    // Validate if user is logged in
+    if (typeof userId === 'undefined') {
+        Swal.fire({
+            icon: 'error',
+            title: 'Login Required',
+            text: 'Please login to add items to cart',
+            footer: '<a href="auth/login">Click here to login</a>'
+        });
+        return;
+    }
+
+    // Show loading state
+    const loadingSwal = Swal.fire({
+        title: 'Adding to Cart',
+        html: 'Please wait...',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    // AJAX request
+    $.ajax({
+        url: 'controller/add-to-cart.php',
+        method: 'POST',
+        data: {
+            product_id: productId,
+            qty: qty
+        },
+        dataType: 'json',
+        success: function(response) {
+            loadingSwal.close();
+            
+            if (response.success) {
+                // Update cart counter
+                if (response.cartCount) {
+                    $('.cart-count, .floating-cart-btn .cart-count').text(response.cartCount).show();
+                }
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    html: `<strong>${response.productName}</strong> added to cart`,
+                    showConfirmButton: true,
+                    showCancelButton: true,
+                    confirmButtonText: 'View Cart',
+                    cancelButtonText: 'Continue Shopping',
+                    timer: 3000,
+                    timerProgressBar: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = 'my-cart';
+                    }
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed',
+                    text: response.message || 'Failed to add to cart',
+                    showConfirmButton: true
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            loadingSwal.close();
+            
+            let errorMessage = 'Network error occurred';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            } else if (xhr.status === 401) {
+                errorMessage = 'Session expired. Please login again';
+            }
+            
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: errorMessage,
+                footer: xhr.status === 401 ? '<a href="auth/login">Click here to login</a>' : ''
+            });
+        }
+    });
+}

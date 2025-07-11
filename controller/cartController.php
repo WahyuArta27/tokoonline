@@ -238,4 +238,97 @@ function getUserTransactions($user_id)
     return $transactions;
 }
 
+// Tambahkan fungsi ini di cartController.php
+function addToCart($user_id, $product_id, $qty) {
+    global $conn;
+
+    // Validasi input
+    $user_id = filter_var($user_id, FILTER_VALIDATE_INT);
+    $product_id = filter_var($product_id, FILTER_VALIDATE_INT);
+    $qty = filter_var($qty, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+    if (!$user_id || !$product_id || !$qty) {
+        return ['success' => false, 'message' => 'Invalid input'];
+    }
+
+    // Cek stok produk
+    $product = getProductById($product_id);
+    if (!$product) {
+        return ['success' => false, 'message' => 'Product not found'];
+    }
+
+    if ($qty > $product['product_stok']) {
+        return ['success' => false, 'message' => 'Quantity exceeds available stock'];
+    }
+
+    // Cek apakah produk sudah ada di keranjang
+    $existingItem = getCartItemByProduct($user_id, $product_id);
+    
+    if ($existingItem) {
+        // Update quantity jika item sudah ada
+        $newQty = $existingItem['qty'] + $qty;
+        if ($newQty > $product['product_stok']) {
+            return ['success' => false, 'message' => 'Total quantity exceeds available stock'];
+        }
+        
+        $updateResult = updateCartItemQuantity($existingItem['keranjang_id'], $newQty);
+        return $updateResult;
+    } else {
+        // Tambahkan item baru ke keranjang
+        $insertResult = insertCartItem($user_id, $product_id, $qty);
+        return $insertResult;
+    }
+}
+
+// Fungsi pendukung baru
+function getProductById($product_id) {
+    global $conn;
+    $sql = "SELECT * FROM tb_product WHERE product_id = ?";
+    $stmt = mysqli_prepare($conn, $sql);
+    mysqli_stmt_bind_param($stmt, "i", $product_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    return mysqli_fetch_assoc($result);
+}
+
+function getCartItemByProduct($user_id, $product_id) {
+    global $conn;
+    $sql = "SELECT * FROM tb_keranjang WHERE user_id = ? AND product_id = ? AND is_payed = '2'";
+    $stmt = mysqli_prepare($conn, $sql);
+    mysqli_stmt_bind_param($stmt, "ii", $user_id, $product_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    return mysqli_fetch_assoc($result);
+}
+
+function updateCartItemQuantity($cart_id, $newQty) {
+    global $conn;
+    $sql = "UPDATE tb_keranjang SET qty = ? WHERE keranjang_id = ?";
+    $stmt = mysqli_prepare($conn, $sql);
+    mysqli_stmt_bind_param($stmt, "ii", $newQty, $cart_id);
+    $success = mysqli_stmt_execute($stmt);
+    $affected = mysqli_stmt_affected_rows($stmt);
+    mysqli_stmt_close($stmt);
+    
+    return [
+        'success' => $success && $affected > 0,
+        'message' => $success ? 'Cart updated' : 'Failed to update cart'
+    ];
+}
+
+function insertCartItem($user_id, $product_id, $qty) {
+    global $conn;
+    $sql = "INSERT INTO tb_keranjang (user_id, product_id, qty, is_payed) VALUES (?, ?, ?, '2')";
+    $stmt = mysqli_prepare($conn, $sql);
+    mysqli_stmt_bind_param($stmt, "iii", $user_id, $product_id, $qty);
+    $success = mysqli_stmt_execute($stmt);
+    $affected = mysqli_stmt_affected_rows($stmt);
+    mysqli_stmt_close($stmt);
+    
+    return [
+        'success' => $success && $affected > 0,
+        'message' => $success ? 'Item added to cart' : 'Failed to add to cart'
+    ];
+}
+
 ?>
