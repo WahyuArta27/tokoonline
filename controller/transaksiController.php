@@ -66,13 +66,42 @@ function addTransaksi($data) {
         $conn->begin_transaction();
         error_log("Transaction started");
         
-        // Buat query INSERT minimal
-        $sql = "INSERT INTO tb_transaksi (user_id, bank_id, status_pembayaran) VALUES (?, ?, 0)";
-        error_log("SQL Query: $sql");
+        // Sesuaikan query INSERT dengan kolom yang ada di tabel
+        $transaksi_alamat = isset($data['transaksi_alamat']) ? $data['transaksi_alamat'] : '';
+        $keranjang_grup = isset($data['keranjang_grup']) ? $data['keranjang_grup'] : null;
+        
+        // Cek apakah kolom transaksi_alamat dan keranjang_grup ada di tabel
+        $has_alamat = false;
+        $has_keranjang_grup = false;
+        
+        foreach ($columns as $col) {
+            if ($col['name'] === 'transaksi_alamat') $has_alamat = true;
+            if ($col['name'] === 'keranjang_grup') $has_keranjang_grup = true;
+        }
+        
+        // Buat query INSERT sesuai dengan struktur tabel dan tambahkan tanggal_transaksi
+        if ($has_alamat && $has_keranjang_grup) {
+            $sql = "INSERT INTO tb_transaksi (user_id, bank_id, transaksi_alamat, keranjang_grup, tanggal_transaksi, status_pembayaran) 
+                    VALUES (?, ?, ?, ?, NOW(), 0)";
+            error_log("SQL Query with alamat and grup: $sql");
+        } elseif ($has_alamat) {
+            $sql = "INSERT INTO tb_transaksi (user_id, bank_id, transaksi_alamat, tanggal_transaksi, status_pembayaran) 
+                    VALUES (?, ?, ?, NOW(), 0)";
+            error_log("SQL Query with alamat: $sql");
+        } elseif ($has_keranjang_grup) {
+            $sql = "INSERT INTO tb_transaksi (user_id, bank_id, keranjang_grup, tanggal_transaksi, status_pembayaran) 
+                    VALUES (?, ?, ?, NOW(), 0)";
+            error_log("SQL Query with grup: $sql");
+        } else {
+            $sql = "INSERT INTO tb_transaksi (user_id, bank_id, tanggal_transaksi, status_pembayaran) 
+                    VALUES (?, ?, NOW(), 0)";
+            error_log("SQL Query basic: $sql");
+        }
         
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
             error_log("Prepare failed: " . $conn->error);
+            $conn->rollback();
             return false;
         }
         
@@ -80,7 +109,20 @@ function addTransaksi($data) {
         $bank_id = (int)$data['bank_id'];
         error_log("Binding parameters: user_id=$user_id, bank_id=$bank_id");
         
-        $stmt->bind_param("ii", $user_id, $bank_id);
+        // Bind parameters sesuai dengan query
+        if ($has_alamat && $has_keranjang_grup) {
+            error_log("Binding 4 parameters");
+            $stmt->bind_param("iisi", $user_id, $bank_id, $transaksi_alamat, $keranjang_grup);
+        } elseif ($has_alamat) {
+            error_log("Binding 3 parameters with alamat");
+            $stmt->bind_param("iis", $user_id, $bank_id, $transaksi_alamat);
+        } elseif ($has_keranjang_grup) {
+            error_log("Binding 3 parameters with grup");
+            $stmt->bind_param("iii", $user_id, $bank_id, $keranjang_grup);
+        } else {
+            error_log("Binding 2 parameters");
+            $stmt->bind_param("ii", $user_id, $bank_id);
+        }
         
         if (!$stmt->execute()) {
             error_log("Execute failed: " . $stmt->error);
@@ -164,7 +206,6 @@ function getTransaksiFilter($tgl_awal, $tgl_akhir = null) {
     global $conn;
 
     try {
-        // Validasi format tanggal
         if (!DateTime::createFromFormat('Y-m-d', $tgl_awal)) {
             throw new Exception("Format tanggal awal tidak valid: $tgl_awal");
         }
@@ -172,7 +213,6 @@ function getTransaksiFilter($tgl_awal, $tgl_akhir = null) {
             throw new Exception("Format tanggal akhir tidak valid: $tgl_akhir");
         }
 
-        // Buat query dengan filter tanggal
         $sql = "SELECT 
                     t.transaksi_id,
                     t.tanggal_transaksi,
@@ -191,30 +231,22 @@ function getTransaksiFilter($tgl_awal, $tgl_akhir = null) {
                 WHERE DATE(t.tanggal_transaksi) >= ?";
 
         $params = [$tgl_awal];
-
         if ($tgl_akhir) {
             $sql .= " AND DATE(t.tanggal_transaksi) <= ?";
             $params[] = $tgl_akhir;
         }
-
         $sql .= " ORDER BY t.tanggal_transaksi DESC";
 
-        // Log query untuk debugging
-        error_log("QUERY: $sql");
-        error_log("PARAMS: " . print_r($params, true));
-
-        // Gunakan prepared statement
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
-            throw new Exception("Gagal mempersiapkan statement: " . $conn->error);
+            throw new Exception("Prepare statement failed: " . $conn->error);
         }
 
-        // Bind parameters
         $types = str_repeat('s', count($params));
         $stmt->bind_param($types, ...$params);
 
         if (!$stmt->execute()) {
-            throw new Exception("Gagal mengeksekusi query: " . $stmt->error);
+            throw new Exception("Execute query failed: " . $stmt->error);
         }
 
         $result = $stmt->get_result();
@@ -224,11 +256,8 @@ function getTransaksiFilter($tgl_awal, $tgl_akhir = null) {
         }
 
         $stmt->close();
-
-        // Log hasil query
-        error_log("RESULT: " . print_r($transactions, true));
-
         return $transactions;
+
     } catch (Exception $e) {
         error_log("Error in getTransaksiFilter: " . $e->getMessage());
         return [];

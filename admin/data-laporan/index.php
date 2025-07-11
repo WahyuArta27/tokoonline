@@ -6,7 +6,7 @@ if (!isset($_SESSION['login'])) {
     exit;
 }
 
-// Hanya perlu include satu kali controller dengan path yang benar
+// Include controller transaksi
 require_once __DIR__ . '/../../controller/transaksiController.php';
 
 // Set default date range (current month)
@@ -41,19 +41,10 @@ $alert = isset($messages[$response]) ? $messages[$response] : null;
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
-      .sidebar {
-          min-height: 100vh;
-          background: #f8f9fa;
-      }
-      .table-responsive {
-          overflow-x: auto;
-      }
-      .badge-paid {
-          background-color: #28a745;
-      }
-      .badge-pending {
-          background-color: #ffc107;
-      }
+      .sidebar { min-height: 100vh; background: #f8f9fa; }
+      .table-responsive { overflow-x: auto; }
+      .badge-paid { background-color: #28a745; }
+      .badge-pending { background-color: #ffc107; }
   </style>
 </head>
 <body>
@@ -196,7 +187,6 @@ $alert = isset($messages[$response]) ? $messages[$response] : null;
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Auto close alert after 5 detik
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
                 const alerts = document.querySelectorAll('.alert');
