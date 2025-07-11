@@ -8,14 +8,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Hind+Vadodara:wght@300;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <title>Toko Media | Admin Dashboard</title>
+    <title>Toko Komputer | Admin Dashboard</title>
 </head>
 
 <body>
     <div class="uwucontainer">
         <div class="header">
             <div class="header-logo">
-                <span class="site-title">Toko Media</span>
+                <span class="site-title">Toko Komputer</span>
             </div>
             <div class="header-search">
                 <button class="button-menu">

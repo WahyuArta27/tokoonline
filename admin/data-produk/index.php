@@ -136,14 +136,14 @@ if ($hapus === "true") {
             opacity: 0.8;
         }
     </style>
-    <title>Toko Media | Admin Dashboard</title>
+    <title>Toko Komputer | Admin Dashboard</title>
 </head>
 
 <body>
     <div class="container">
         <div class="header">
             <div class="header-logo">
-                <span class="site-title">Toko Media</span>
+                <span class="site-title">Toko Komputer</span>
             </div>
             <div class="header-search">
                 <button class="button-menu">
