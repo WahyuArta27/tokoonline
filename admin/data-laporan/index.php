@@ -6,23 +6,20 @@ if (!isset($_SESSION['login'])) {
     exit;
 }
 
-// Gunakan path absolut
+// Hanya perlu include satu kali controller dengan path yang benar
 require_once __DIR__ . '/../../controller/transaksiController.php';
-
-// Perbaikan path relatif yang benar
-require __DIR__ . '/../../controller/transaksiController.php';
 
 // Set default date range (current month)
 $tgl_awal = date('Y-m-01');
 $tgl_akhir = date('Y-m-d');
 
-// Process filter form
+// Proses filter form
 if (isset($_POST['tampilkan'])) {
     $tgl_awal = $_POST['tgl_awal'];
     $tgl_akhir = $_POST['tgl_akhir'] ?? date('Y-m-d');
     $transactions = getTransaksiFilter($tgl_awal, $tgl_akhir);
 } else {
-    // Default: show current month transactions
+    // Default: tampilkan transaksi bulan berjalan
     $transactions = getTransaksiFilter($tgl_awal, $tgl_akhir);
 }
 
@@ -30,7 +27,7 @@ if (isset($_POST['tampilkan'])) {
 $response = $_GET['response'] ?? null;
 $messages = [
     "success" => "Operation successful",
-    "error" => "An error occurred"
+    "error"   => "An error occurred"
 ];
 $alert = isset($messages[$response]) ? $messages[$response] : null;
 ?>
@@ -38,26 +35,26 @@ $alert = isset($messages[$response]) ? $messages[$response] : null;
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Transaksi - Admin Panel</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .sidebar {
-            min-height: 100vh;
-            background: #f8f9fa;
-        }
-        .table-responsive {
-            overflow-x: auto;
-        }
-        .badge-paid {
-            background-color: #28a745;
-        }
-        .badge-pending {
-            background-color: #ffc107;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan Transaksi - Admin Panel</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+      .sidebar {
+          min-height: 100vh;
+          background: #f8f9fa;
+      }
+      .table-responsive {
+          overflow-x: auto;
+      }
+      .badge-paid {
+          background-color: #28a745;
+      }
+      .badge-pending {
+          background-color: #ffc107;
+      }
+  </style>
 </head>
 <body>
     <div class="container-fluid">
@@ -199,7 +196,7 @@ $alert = isset($messages[$response]) ? $messages[$response] : null;
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Auto close alert after 5 seconds
+        // Auto close alert after 5 detik
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
                 const alerts = document.querySelectorAll('.alert');

@@ -1,14 +1,8 @@
 <?php
-$host = "localhost";
-$username = "root"; 
-$password = "";
-$database = "nama_database_toko";
-
-$conn = mysqli_connect($host, $username, $password, $database);
+$conn = mysqli_connect('localhost', 'root', '', 'db_toko');
 
 if (!$conn) {
-    die("Koneksi gagal: " . mysqli_connect_error());
+    error_log("Database connection failed: " . mysqli_connect_error());
+    die("Database connection failed: " . mysqli_connect_error());
 }
-
-mysqli_set_charset($conn, "utf8mb4");
 ?>

@@ -1,5 +1,5 @@
 <?php
-require_once './database/koneksi.php';
+// Hanya gunakan koneksi dari file berikut (pastikan path-nya benar)
 require_once __DIR__ . '/../database/koneksi.php';
 
 function addTransaksi($data) {
@@ -9,7 +9,6 @@ function addTransaksi($data) {
     error_log("=== START TRANSACTION DEBUG ===");
     error_log("Input data: " . print_r($data, true));
     
-    // Cek koneksi database
     if ($conn->connect_error) {
         error_log("DB Connection Error: " . $conn->connect_error);
         return false;
@@ -26,10 +25,10 @@ function addTransaksi($data) {
         $columns = [];
         while ($row = $result->fetch_assoc()) {
             $columns[] = [
-                'name' => $row['Field'],
-                'type' => $row['Type'],
-                'null' => $row['Null'],
-                'key' => $row['Key'],
+                'name'    => $row['Field'],
+                'type'    => $row['Type'],
+                'null'    => $row['Null'],
+                'key'     => $row['Key'],
                 'default' => $row['Default']
             ];
         }
@@ -67,7 +66,7 @@ function addTransaksi($data) {
         $conn->begin_transaction();
         error_log("Transaction started");
         
-        // Buat query INSERT minimal (hanya kolom yang pasti ada)
+        // Buat query INSERT minimal
         $sql = "INSERT INTO tb_transaksi (user_id, bank_id, status_pembayaran) VALUES (?, ?, 0)";
         error_log("SQL Query: $sql");
         
@@ -83,9 +82,7 @@ function addTransaksi($data) {
         
         $stmt->bind_param("ii", $user_id, $bank_id);
         
-        // Execute query
-        $result = $stmt->execute();
-        if (!$result) {
+        if (!$stmt->execute()) {
             error_log("Execute failed: " . $stmt->error);
             $conn->rollback();
             error_log("Transaction rolled back");
@@ -97,7 +94,7 @@ function addTransaksi($data) {
         
         $stmt->close();
         
-        // Update keranjang items to mark them as part of this transaction
+        // Update keranjang items
         $update_cart = $conn->prepare("UPDATE tb_keranjang SET is_payed = '1', transaksi_id = ? WHERE user_id = ? AND is_payed = '2'");
         if (!$update_cart) {
             error_log("Prepare update cart failed: " . $conn->error);
@@ -106,16 +103,13 @@ function addTransaksi($data) {
         }
         
         $update_cart->bind_param("ii", $transaksi_id, $user_id);
-        $cart_result = $update_cart->execute();
-        
-        if (!$cart_result) {
+        if (!$update_cart->execute()) {
             error_log("Update cart failed: " . $update_cart->error);
             $conn->rollback();
             return false;
         }
         
-        $affected_rows = $update_cart->affected_rows;
-        error_log("Updated $affected_rows cart items to transaction ID: $transaksi_id");
+        error_log("Updated " . $update_cart->affected_rows . " cart items to transaction ID: $transaksi_id");
         $update_cart->close();
         
         // Commit transaksi
@@ -126,7 +120,6 @@ function addTransaksi($data) {
         return $transaksi_id;
         
     } catch (Exception $e) {
-        // Rollback pada error
         if ($conn->connect_error === null) {
             $conn->rollback();
             error_log("Transaction rolled back due to exception");
@@ -141,7 +134,6 @@ function getTransaksiByUserId($id) {
     global $conn;
     
     try {
-        // Improved query to get transaction details with product information
         $sql = "SELECT t.*, k.qty, p.product_name, p.product_price 
                 FROM tb_transaksi t
                 JOIN tb_keranjang k ON t.transaksi_id = k.transaksi_id
@@ -170,69 +162,73 @@ function getTransaksiByUserId($id) {
 
 function getTransaksiFilter($tgl_awal, $tgl_akhir = null) {
     global $conn;
-    
+
     try {
         // Validasi format tanggal
         if (!DateTime::createFromFormat('Y-m-d', $tgl_awal)) {
-            throw new Exception("Format tanggal awal tidak valid");
+            throw new Exception("Format tanggal awal tidak valid: $tgl_awal");
         }
-        
         if ($tgl_akhir && !DateTime::createFromFormat('Y-m-d', $tgl_akhir)) {
-            throw new Exception("Format tanggal akhir tidak valid");
+            throw new Exception("Format tanggal akhir tidak valid: $tgl_akhir");
         }
 
+        // Buat query dengan filter tanggal
         $sql = "SELECT 
                     t.transaksi_id,
                     t.tanggal_transaksi,
                     t.status_pembayaran,
                     k.qty,
-                    p.product_id,
                     p.product_name,
                     p.product_price,
-                    u.user_id,
                     u.fullname,
-                    b.bank_id,
                     b.nama_bank,
                     b.no_bank
                 FROM tb_transaksi t
-                JOIN tb_keranjang k ON t.transaksi_id = k.transaksi_id
-                JOIN tb_product p ON k.product_id = p.product_id
-                JOIN tb_user u ON t.user_id = u.user_id
-                LEFT JOIN tb_bank b ON t.bank_id = b.bank_id
+                INNER JOIN tb_keranjang k ON t.keranjang_grup = k.keranjang_id
+                INNER JOIN tb_product p ON k.product_id = p.product_id
+                INNER JOIN tb_user u ON t.user_id = u.user_id
+                INNER JOIN tb_bank b ON t.bank_id = b.bank_id
                 WHERE DATE(t.tanggal_transaksi) >= ?";
-        
+
         $params = [$tgl_awal];
-        
+
         if ($tgl_akhir) {
             $sql .= " AND DATE(t.tanggal_transaksi) <= ?";
             $params[] = $tgl_akhir;
         }
-        
+
         $sql .= " ORDER BY t.tanggal_transaksi DESC";
-        
-        $stmt = mysqli_prepare($conn, $sql);
+
+        // Log query untuk debugging
+        error_log("QUERY: $sql");
+        error_log("PARAMS: " . print_r($params, true));
+
+        // Gunakan prepared statement
+        $stmt = $conn->prepare($sql);
         if (!$stmt) {
-            throw new Exception("Gagal mempersiapkan statement: " . mysqli_error($conn));
+            throw new Exception("Gagal mempersiapkan statement: " . $conn->error);
         }
-        
+
         // Bind parameters
         $types = str_repeat('s', count($params));
-        mysqli_stmt_bind_param($stmt, $types, ...$params);
-        
-        if (!mysqli_stmt_execute($stmt)) {
-            throw new Exception("Gagal mengeksekusi query: " . mysqli_stmt_error($stmt));
+        $stmt->bind_param($types, ...$params);
+
+        if (!$stmt->execute()) {
+            throw new Exception("Gagal mengeksekusi query: " . $stmt->error);
         }
-        
-        $result = mysqli_stmt_get_result($stmt);
+
+        $result = $stmt->get_result();
         $transactions = [];
-        
-        while ($row = mysqli_fetch_assoc($result)) {
+        while ($row = $result->fetch_assoc()) {
             $transactions[] = $row;
         }
-        
-        mysqli_stmt_close($stmt);
+
+        $stmt->close();
+
+        // Log hasil query
+        error_log("RESULT: " . print_r($transactions, true));
+
         return $transactions;
-        
     } catch (Exception $e) {
         error_log("Error in getTransaksiFilter: " . $e->getMessage());
         return [];
@@ -280,22 +276,18 @@ function getTotalPendapatan($tgl_awal, $tgl_akhir = null) {
 function konfirmPayment($data) {
     global $conn;
     
-    // Basic validation
     if (empty($data['transaksi_id'])) {
         error_log("Empty transaction ID in konfirmPayment");
         return false;
     }
     
     try {
-        // Log untuk debugging
         error_log("Confirming payment for transaction ID: " . $data['transaksi_id']);
         
-        // Prepare payment data
         $transaksi_id = (int)$data['transaksi_id'];
         $payment_proof = $data['payment_proof'] ?? null;
         $payment_notes = $data['payment_notes'] ?? null;
         
-        // Update transaction with payment proof
         $sql = "UPDATE tb_transaksi SET 
                 status_pembayaran = 1, 
                 bukti_pembayaran = ?, 

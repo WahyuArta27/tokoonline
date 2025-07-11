@@ -37,6 +37,7 @@ function showTime() {
   let curr_hour = today.getHours();
   let curr_minute = today.getMinutes();
   let curr_second = today.getSeconds();
+  
   if (curr_hour == 0) {
     curr_hour = 12;
   }
@@ -46,50 +47,45 @@ function showTime() {
   curr_hour = checkTime(curr_hour);
   curr_minute = checkTime(curr_minute);
   curr_second = checkTime(curr_second);
+  
   timeElement.innerHTML = `<strong>Jam hari ini : ${curr_hour}:${curr_minute}:${curr_second} </strong>`;
 }
 
 function checkTime(i) {
-  if (i < 10) {
-    i = "0" + i;
-  }
-  return i;
+  return i < 10 ? "0" + i : i;
 }
 setInterval(showTime, 500);
 
 // New Cart Functionality
 $(document).ready(function () {
-  // Initialize DataTables if it exists on the page
+  // DataTables initialization jika elemen #tabel-data ada
   if ($.fn.DataTable && $("#tabel-data").length) {
     $("#tabel-data").DataTable({
-      "responsive": true,
-      "language": {
-        "search": "Cari:",
-        "lengthMenu": "Tampilkan _MENU_ data per halaman",
-        "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
-        "infoEmpty": "Tidak ada data yang ditampilkan",
-        "infoFiltered": "(difilter dari _MAX_ total data)",
-        "zeroRecords": "Tidak ada data yang cocok",
-        "paginate": {
-          "first": "Pertama",
-          "last": "Terakhir",
-          "next": "Selanjutnya",
-          "previous": "Sebelumnya"
+      responsive: true,
+      language: {
+        search: "Cari:",
+        lengthMenu: "Tampilkan _MENU_ data per halaman",
+        info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+        infoEmpty: "Tidak ada data yang ditampilkan",
+        infoFiltered: "(difilter dari _MAX_ total data)",
+        zeroRecords: "Tidak ada data yang cocok",
+        paginate: {
+          first: "Pertama",
+          last: "Terakhir",
+          next: "Selanjutnya",
+          previous: "Sebelumnya"
         }
       }
     });
   }
 
-  // Initialize cart counter if user is logged in
+  // Update cart counter jika user sudah login
   if (typeof userId !== 'undefined') {
     updateCartCounter();
-    // Auto-update cart counter every 30 seconds
     setInterval(updateCartCounter, 30000);
   }
 
-  // Handle checkout form submission
   $("#checkoutForm").on('submit', function(e) {
-    // Form validation
     const bankId = $('#bank_id').val();
     if (bankId === "0") {
       e.preventDefault();
@@ -112,7 +108,6 @@ $(document).ready(function () {
       return false;
     }
     
-    // Show loading state
     Swal.fire({
       title: 'Processing...',
       text: 'Please wait while we process your order',
@@ -125,17 +120,17 @@ $(document).ready(function () {
     return true;
   });
 
-  // Cart functions
+  // Function updateCartCounter
   function updateCartCounter() {
     if (typeof userId !== 'undefined') {
       $.ajax({
         url: 'controller/getCartCount.php',
         method: 'GET',
         data: { user_id: userId },
-        dataType: 'json', // Expect JSON response
+        dataType: 'json',
         success: function(data) {
-          if (data && data.count !== undefined) {
-            $('.cart-count').text(data.count);
+          if (data && typeof data.count !== 'undefined') {
+            $('.cart-count, .floating-cart-btn .cart-count').text(data.count);
           } else {
             console.error('Invalid cart count data:', data);
           }
@@ -149,73 +144,82 @@ $(document).ready(function () {
     }
   }
 
-  // Add to cart function (single item)
-function addToCart(productId, qty, user_id) {
-    // Validasi jumlah
-    if (qty <= 0) {
-        Swal.fire('Error', 'Jumlah tidak valid', 'error');
-        return;
+  // Add to cart (single item)
+  window.addToCart = function(productId, qty = 1) {
+    if (typeof userId === 'undefined') {
+      Swal.fire({
+        icon: 'error',
+        title: 'Login Required',
+        text: 'Please login to add items to cart',
+        footer: '<a href="auth/login">Click here to login</a>'
+      });
+      return;
     }
 
-    // Tampilkan loading
-    Swal.fire({
-        title: 'Processing...',
-        text: 'Menambahkan produk ke keranjang',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
+    const loadingSwal = Swal.fire({
+      title: 'Adding to Cart',
+      html: 'Please wait...',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
     });
 
-    // Kirim request AJAX
     $.ajax({
-        url: 'add-to-cart.php',
-        method: 'POST',
-        data: {
-            product_id: productId,
-            user_id: user_id,
-            qty: qty
-        },
-        dataType: 'json', // Expect JSON response
-        success: function (response) {
-            console.log("Response from add-to-cart.php:", response);  // Debugging
-
-            try {
-                const result = JSON.parse(response);
-                console.log("Parsed JSON response:", result); // Debugging
-
-                if (result.statusCode === 200) {
-                    Swal.fire({
-                        title: 'Berhasil',
-                        text: result.message || 'Produk berhasil ditambahkan ke keranjang',
-                        icon: 'success',
-                        showCancelButton: true,
-                        confirmButtonText: 'Lihat Keranjang',
-                        cancelButtonText: 'Lanjut Belanja'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            console.log("Redirecting to my-cart.php"); // Debugging
-                            window.location.href = './my-cart';
-                        } else {
-                            console.log("Staying on shop page"); // Debugging
-                        }
-                    });
-                } else {
-                    Swal.fire('Error', result.message || 'Gagal menambahkan produk', 'error');
-                }
-            } catch (e) {
-                console.error("Error parsing JSON response:", e); // Debugging
-                Swal.fire('Error', 'Terjadi kesalahan sistem', 'error');
-            } finally {
-                Swal.close(); // Ensure SweetAlert loading is closed
+      url: 'controller/add-to-cart.php',
+      method: 'POST',
+      data: {
+        product_id: productId,
+        qty: qty
+      },
+      dataType: 'json',
+      success: function(response) {
+        loadingSwal.close();
+        if (response.success) {
+          if (response.cartCount) {
+            $('.cart-count, .floating-cart-btn .cart-count').text(response.cartCount).show();
+          }
+          Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            html: `<strong>${response.productName}</strong> added to cart`,
+            showConfirmButton: true,
+            showCancelButton: true,
+            confirmButtonText: 'View Cart',
+            cancelButtonText: 'Continue Shopping',
+            timer: 3000,
+            timerProgressBar: true
+          }).then((result) => {
+            if (result.isConfirmed) {
+              window.location.href = 'my-cart';
             }
-        },
-        error: function (xhr, status, error) {
-            console.error("AJAX Error:", error);  // Debugging
-            Swal.fire('Network Error', 'Periksa koneksi Anda dan coba lagi', 'error');
+          });
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Failed',
+            text: response.message || 'Failed to add to cart',
+            showConfirmButton: true
+          });
         }
+      },
+      error: function(xhr, status, error) {
+        loadingSwal.close();
+        let errorMessage = 'Network error occurred';
+        if (xhr.responseJSON && xhr.responseJSON.message) {
+          errorMessage = xhr.responseJSON.message;
+        } else if (xhr.status === 401) {
+          errorMessage = 'Session expired. Please login again';
+        }
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: errorMessage,
+          footer: xhr.status === 401 ? '<a href="auth/login">Click here to login</a>' : ''
+        });
+      }
     });
-}
+  };
 
   // Add multiple items to cart
   window.addMultipleToCart = function(user_id) {
@@ -226,7 +230,6 @@ function addToCart(productId, qty, user_id) {
       return;
     }
 
-    // Validate quantities
     let valid = true;
     selectedProducts.each(function() {
       const productId = $(this).val();
@@ -256,10 +259,10 @@ function addToCart(productId, qty, user_id) {
     }).then((result) => {
       if (result.isConfirmed) {
         $.ajax({
-          url: 'add-to-cart.php', // Direct path to the file
+          url: 'add-to-cart.php',
           method: 'POST',
           data: $('#multiCartForm').serialize() + '&user_id=' + user_id + '&multi=1',
-          dataType: 'json', // Expect JSON response
+          dataType: 'json',
           success: function(res) {
             if (res && res.statusCode === 200) {
               Swal.fire({
@@ -294,15 +297,11 @@ function addToCart(productId, qty, user_id) {
     $.ajax({
       url: 'controller/updateCart.php',
       method: 'POST',
-      data: {
-        cart_id: cartId,
-        qty: newQty
-      },
-      dataType: 'json', // Expect JSON response
+      data: { cart_id: cartId, qty: newQty },
+      dataType: 'json',
       success: function(res) {
         if (res && res.success) {
           updateCartCounter();
-          // Optional: Update subtotal without page reload
           $(`#subtotal-${cartId}`).text('Rp ' + res.subtotal);
           $('#cart-total').text('Rp ' + res.total);
         } else {
@@ -332,15 +331,13 @@ function addToCart(productId, qty, user_id) {
           url: 'controller/removeCart.php',
           method: 'POST',
           data: { id: cartId },
-          dataType: 'json', // Expect JSON response
+          dataType: 'json',
           success: function(res) {
             if (res && res.success) {
               $(`#cart-item-${cartId}`).remove();
               updateCartCounter();
               $('#cart-total').text('Rp ' + res.total);
               Swal.fire('Deleted!', 'Item telah dihapus.', 'success');
-              
-              // If cart is now empty, reload the page
               if (res.empty) {
                 window.location.reload();
               }
@@ -358,7 +355,6 @@ function addToCart(productId, qty, user_id) {
 
 // Floating cart button functionality
 document.addEventListener('DOMContentLoaded', function() {
-  // Only create floating cart if user is logged in
   if (typeof userId !== 'undefined') {
     const floatingCartBtn = document.createElement('div');
     floatingCartBtn.className = 'floating-cart-btn';
@@ -370,7 +366,6 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     document.body.appendChild(floatingCartBtn);
 
-    // Show/hide based on scroll
     window.addEventListener('scroll', function() {
       if (window.scrollY > 300) {
         floatingCartBtn.classList.add('show');
@@ -380,88 +375,3 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
-
-// Add to cart function (updated version)
-function addToCart(productId, qty = 1) {
-    // Validate if user is logged in
-    if (typeof userId === 'undefined') {
-        Swal.fire({
-            icon: 'error',
-            title: 'Login Required',
-            text: 'Please login to add items to cart',
-            footer: '<a href="auth/login">Click here to login</a>'
-        });
-        return;
-    }
-
-    // Show loading state
-    const loadingSwal = Swal.fire({
-        title: 'Adding to Cart',
-        html: 'Please wait...',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
-
-    // AJAX request
-    $.ajax({
-        url: 'controller/add-to-cart.php',
-        method: 'POST',
-        data: {
-            product_id: productId,
-            qty: qty
-        },
-        dataType: 'json',
-        success: function(response) {
-            loadingSwal.close();
-            
-            if (response.success) {
-                // Update cart counter
-                if (response.cartCount) {
-                    $('.cart-count, .floating-cart-btn .cart-count').text(response.cartCount).show();
-                }
-                
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success!',
-                    html: `<strong>${response.productName}</strong> added to cart`,
-                    showConfirmButton: true,
-                    showCancelButton: true,
-                    confirmButtonText: 'View Cart',
-                    cancelButtonText: 'Continue Shopping',
-                    timer: 3000,
-                    timerProgressBar: true
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        window.location.href = 'my-cart';
-                    }
-                });
-            } else {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Failed',
-                    text: response.message || 'Failed to add to cart',
-                    showConfirmButton: true
-                });
-            }
-        },
-        error: function(xhr, status, error) {
-            loadingSwal.close();
-            
-            let errorMessage = 'Network error occurred';
-            if (xhr.responseJSON && xhr.responseJSON.message) {
-                errorMessage = xhr.responseJSON.message;
-            } else if (xhr.status === 401) {
-                errorMessage = 'Session expired. Please login again';
-            }
-            
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: errorMessage,
-                footer: xhr.status === 401 ? '<a href="auth/login">Click here to login</a>' : ''
-            });
-        }
-    });
-}
