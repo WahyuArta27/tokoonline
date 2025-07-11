@@ -76,13 +76,13 @@ mysqli_stmt_close($stmt);
 if ($existingItem) {
     // Jika sudah ada, update quantity
     $new_qty = $existingItem['qty'] + $qty;
-    
+
     // Pastikan stok masih mencukupi dengan new_qty (opsional: tambahkan pengecekan lagi)
-    if ($new_qty > $product['product_stok'] + $existingItem['qty']) {
+    if ($new_qty > $product['product_stok']) {
         echo json_encode(['statusCode' => 201, 'message' => 'Stok tidak mencukupi untuk penambahan quantity.']);
         exit;
     }
-    
+
     $sql = "UPDATE tb_keranjang SET qty = ? WHERE keranjang_id = ?";
     $stmt = mysqli_prepare($conn, $sql);
     if ($stmt === false) {
@@ -92,7 +92,7 @@ if ($existingItem) {
     mysqli_stmt_bind_param($stmt, "ii", $new_qty, $existingItem['keranjang_id']);
     $update_result = mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
-    
+
     if (!$update_result) {
         echo json_encode(['statusCode' => 500, 'message' => 'Gagal memperbarui keranjang. ' . mysqli_error($conn)]);
         exit;
@@ -115,25 +115,11 @@ if ($existingItem) {
     mysqli_stmt_close($stmt);
 }
 
-// Update stok produk setelah menambahkan ke keranjang
-$new_stock = $product['product_stok'] - $qty;
-$sql = "UPDATE tb_product SET product_stok = ? WHERE product_id = ?";
-$stmt = mysqli_prepare($conn, $sql);
-if ($stmt === false) {
-    echo json_encode(['statusCode' => 500, 'message' => 'Gagal menyiapkan statement update stok.']);
-    exit;
-}
-mysqli_stmt_bind_param($stmt, "ii", $new_stock, $product_id);
-$update_result = mysqli_stmt_execute($stmt);
-mysqli_stmt_close($stmt);
-
-if ($update_result === false) {
-    echo json_encode(['statusCode' => 500, 'message' => 'Gagal memperbarui stok. ' . mysqli_error($conn)]);
-    exit;
-}
 
 echo json_encode([
     'statusCode' => 200,
     'message' => 'Produk berhasil ditambahkan ke keranjang.'
 ]);
+
+mysqli_close($conn);
 ?>

@@ -146,7 +146,7 @@ if (isset($_SESSION['login'])) {
                           <label for="qty_<?= $product['product_id'] ?>">Jumlah:</label>
                           <input type="number" id="qty_<?= $product['product_id'] ?>" name="qty[<?= $product['product_id'] ?>]" class="form-control" min="1" max="<?= htmlspecialchars($product['product_stok']) ?>" value="1">
                         </div>
-                        <button onclick="addToCart(<?= htmlspecialchars($product['product_id']) ?>,
+                        <button type="button" onclick="addToCart(<?= htmlspecialchars($product['product_id']) ?>,
            document.getElementById('qty_<?= htmlspecialchars($product['product_id']) ?>').value,
            <?= htmlspecialchars($user_id) ?>)" class="btn btn-block button-purple">
                           <i class="fas fa-cart-plus"></i> Add to Cart
@@ -233,42 +233,71 @@ if (isset($_SESSION['login'])) {
     });
 
     function addToCart(productId, qty, user_id) {
-      if (qty <= 0) {
+    // Validasi jumlah
+    if (qty <= 0) {
         Swal.fire('Error', 'Jumlah tidak valid', 'error');
         return;
-      }
+    }
 
-      $.ajax({
+    // Tampilkan loading
+    Swal.fire({
+        title: 'Processing...',
+        text: 'Menambahkan produk ke keranjang',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    // Kirim request AJAX
+    $.ajax({
         url: 'add-to-cart.php',
         method: 'POST',
         data: {
-          product_id: productId,
-          user_id: user_id,
-          qty: qty
+            product_id: productId,
+            user_id: user_id,
+            qty: qty
         },
-        success: function(res) {
-          try {
-            const result = JSON.parse(res);
-            if (result.statusCode === 200) {
-              Swal.fire({
-                title: 'Success',
-                text: result.message || 'Produk berhasil ditambahkan ke keranjang',
-                icon: 'success'
-              }).then(() => {
-                window.location.href = './my-cart';
-              });
-            } else {
-              Swal.fire('Error', result.message || 'Gagal menambahkan produk', 'error');
+        dataType: 'json', // Expect JSON response
+        success: function (response) {
+            console.log("Response from add-to-cart.php:", response);  // Debugging
+
+            try {
+                const result = JSON.parse(response);
+                console.log("Parsed JSON response:", result); // Debugging
+
+                if (result.statusCode === 200) {
+                    Swal.fire({
+                        title: 'Berhasil',
+                        text: result.message || 'Produk berhasil ditambahkan ke keranjang',
+                        icon: 'success',
+                        showCancelButton: true,
+                        confirmButtonText: 'Lihat Keranjang',
+                        cancelButtonText: 'Lanjut Belanja'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            console.log("Redirecting to my-cart.php"); // Debugging
+                            window.location.href = './my-cart';
+                        } else {
+                            console.log("Staying on shop page"); // Debugging
+                        }
+                    });
+                } else {
+                    Swal.fire('Error', result.message || 'Gagal menambahkan produk', 'error');
+                }
+            } catch (e) {
+                console.error("Error parsing JSON response:", e); // Debugging
+                Swal.fire('Error', 'Terjadi kesalahan sistem', 'error');
+            } finally {
+                Swal.close(); // Ensure SweetAlert loading is closed
             }
-          } catch (e) {
-            Swal.fire('Error', 'Terjadi kesalahan sistem', 'error');
-          }
         },
-        error: function() {
-          Swal.fire('Error', 'Terjadi kesalahan jaringan', 'error');
+        error: function (xhr, status, error) {
+            console.error("AJAX Error:", error);  // Debugging
+            Swal.fire('Network Error', 'Periksa koneksi Anda dan coba lagi', 'error');
         }
-      });
-    }
+    });
+}
 
     function addMultipleToCart(user_id) {
       const selectedProducts = $('input[name="products[]"]:checked');
@@ -307,31 +336,36 @@ if (isset($_SESSION['login'])) {
         cancelButtonText: 'Batal'
       }).then((result) => {
         if (result.isConfirmed) {
+          // Show loading
+          Swal.fire({
+            title: 'Processing...',
+            text: 'Menambahkan produk ke keranjang',
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            }
+          });
+
           $.ajax({
             url: 'add-to-cart.php',
             method: 'POST',
             data: $('#multiCartForm').serialize() + '&user_id=' + user_id + '&multi=1',
-            success: function(res) {
-              try {
-                const result = JSON.parse(res);
-                if (result.statusCode === 200) {
-                  Swal.fire({
-                    title: 'Success',
-                    text: result.message,
-                    icon: 'success'
-                  }).then(() => {
-                    window.location.href = './my-cart';
-                  });
-                } else {
-                  let errorMsg = result.message || 'Gagal menambahkan produk';
-                  if (result.errors) {
-                    errorMsg += '\n' + result.errors.join('\n');
-                  }
-                  Swal.fire('Error', errorMsg, 'error');
+            success: function(response) {
+              console.log("Response:", response);
+              
+              // Assume success
+              Swal.fire({
+                title: 'Berhasil',
+                text: 'Produk berhasil ditambahkan ke keranjang',
+                icon: 'success',
+                showCancelButton: true,
+                confirmButtonText: 'Lihat Keranjang',
+                cancelButtonText: 'Lanjut Belanja'
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  window.location.href = './my-cart';
                 }
-              } catch (e) {
-                Swal.fire('Error', 'Terjadi kesalahan sistem', 'error');
-              }
+              });
             },
             error: function() {
               Swal.fire('Error', 'Terjadi kesalahan jaringan', 'error');

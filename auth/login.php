@@ -68,7 +68,7 @@ if (isset($_POST["login"])) {
 
     <link rel="stylesheet" href="style.css">
 
-    <title>Toko Media | Sign In</title>
+    <title>Toko Komputer | Sign In</title>
 </head>
 
 <body>

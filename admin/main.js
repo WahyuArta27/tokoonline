@@ -150,40 +150,72 @@ $(document).ready(function () {
   }
 
   // Add to cart function (single item)
-  window.addToCart = function(productId, qty, user_id) {
+function addToCart(productId, qty, user_id) {
+    // Validasi jumlah
     if (qty <= 0) {
-      Swal.fire('Error', 'Jumlah tidak valid', 'error');
-      return;
+        Swal.fire('Error', 'Jumlah tidak valid', 'error');
+        return;
     }
 
-    $.ajax({
-      url: 'add-to-cart.php', // Direct path to the file
-      method: 'POST',
-      data: {
-        product_id: productId,
-        user_id: user_id,
-        qty: qty
-      },
-      dataType: 'json', // Expect JSON response
-      success: function(res) {
-        if (res && res.statusCode === 200) {
-          Swal.fire({
-            title: 'Success',
-            text: res.message || 'Produk berhasil ditambahkan ke keranjang',
-            icon: 'success'
-          }).then(() => {
-            updateCartCounter();
-          });
-        } else {
-          Swal.fire('Error', res.message || 'Gagal menambahkan produk', 'error');
+    // Tampilkan loading
+    Swal.fire({
+        title: 'Processing...',
+        text: 'Menambahkan produk ke keranjang',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
         }
-      },
-      error: function(xhr, status, error) {
-        console.error('Error adding to cart:', status, error, xhr.responseText);
-        Swal.fire('Error', 'Terjadi kesalahan jaringan', 'error');
-      }
     });
-  };
+
+    // Kirim request AJAX
+    $.ajax({
+        url: 'add-to-cart.php',
+        method: 'POST',
+        data: {
+            product_id: productId,
+            user_id: user_id,
+            qty: qty
+        },
+        dataType: 'json', // Expect JSON response
+        success: function (response) {
+            console.log("Response from add-to-cart.php:", response);  // Debugging
+
+            try {
+                const result = JSON.parse(response);
+                console.log("Parsed JSON response:", result); // Debugging
+
+                if (result.statusCode === 200) {
+                    Swal.fire({
+                        title: 'Berhasil',
+                        text: result.message || 'Produk berhasil ditambahkan ke keranjang',
+                        icon: 'success',
+                        showCancelButton: true,
+                        confirmButtonText: 'Lihat Keranjang',
+                        cancelButtonText: 'Lanjut Belanja'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            console.log("Redirecting to my-cart.php"); // Debugging
+                            window.location.href = './my-cart';
+                        } else {
+                            console.log("Staying on shop page"); // Debugging
+                        }
+                    });
+                } else {
+                    Swal.fire('Error', result.message || 'Gagal menambahkan produk', 'error');
+                }
+            } catch (e) {
+                console.error("Error parsing JSON response:", e); // Debugging
+                Swal.fire('Error', 'Terjadi kesalahan sistem', 'error');
+            } finally {
+                Swal.close(); // Ensure SweetAlert loading is closed
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error("AJAX Error:", error);  // Debugging
+            Swal.fire('Network Error', 'Periksa koneksi Anda dan coba lagi', 'error');
+        }
+    });
+}
 
   // Add multiple items to cart
   window.addMultipleToCart = function(user_id) {

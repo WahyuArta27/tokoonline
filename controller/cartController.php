@@ -53,7 +53,6 @@ function getCartItemCount($user_id)
     return $count;
 }
 
-
 function updateCart($data)
 {
     global $conn;
@@ -207,6 +206,36 @@ function getCartTotal($user_id)
 
     error_log("Cart total: $total");
     return $total ? $total : 0;
+}
+
+// === Fungsi baru untuk mengambil data transaksi dari tb_transaksi ===
+function getUserTransactions($user_id)
+{
+    global $conn;
+
+    // Validate user_id
+    $user_id = filter_var($user_id, FILTER_VALIDATE_INT);
+    if (!$user_id) {
+        return [];
+    }
+
+    $sql = "SELECT * FROM tb_transaksi WHERE user_id = ? ORDER BY transaksi_id DESC";
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("Prepare failed (getUserTransactions): " . mysqli_error($conn));
+        return [];
+    }
+    mysqli_stmt_bind_param($stmt, "i", $user_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+
+    $transactions = [];
+    while ($row = mysqli_fetch_assoc($result)) {
+        $transactions[] = $row;
+    }
+    mysqli_stmt_close($stmt);
+
+    return $transactions;
 }
 
 ?>
