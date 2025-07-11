@@ -16,7 +16,7 @@ function getMyCart($user_id)
     $sql = "SELECT k.*, p.* 
               FROM tb_keranjang k
               INNER JOIN tb_product p ON k.product_id = p.product_id 
-              WHERE k.user_id = ? AND k.is_payed = '2'"; // Perbaikan: Menghilangkan LIMIT 1, karena ingin menampilkan semua item di cart
+              WHERE k.user_id = ? AND k.is_payed = '2'"; 
     $stmt = mysqli_prepare($conn, $sql);
     mysqli_stmt_bind_param($stmt, "i", $user_id);
     mysqli_stmt_execute($stmt);
@@ -156,14 +156,21 @@ function clearUserCart($user_id)
     try {
         $sql = "DELETE FROM tb_keranjang WHERE user_id = ? AND is_payed = '2'";
         $stmt = mysqli_prepare($conn, $sql);
+        if (!$stmt) {
+            error_log("Prepare failed: " . mysqli_error($conn));
+            return false;
+        }
+
         mysqli_stmt_bind_param($stmt, "i", $user_id);
         mysqli_stmt_execute($stmt);
         $affected = mysqli_stmt_affected_rows($stmt);
         mysqli_stmt_close($stmt);
 
+        error_log("Clear user cart: $affected rows affected");
         return $affected > 0;
+
     } catch (Exception $e) {
-        error_log("Error clearing user cart: " . $e->getMessage());
+        error_log("Exception in clearUserCart: " . $e->getMessage());
         return false;
     }
 }
@@ -173,8 +180,12 @@ function getCartTotal($user_id)
 {
     global $conn;
 
+    error_log("=== DEBUG: getCartTotal ===");
+    error_log("User ID: $user_id");
+
     $user_id = filter_var($user_id, FILTER_VALIDATE_INT);
     if (!$user_id) {
+        error_log("Invalid user_id: $user_id");
         return 0;
     }
 
@@ -183,12 +194,18 @@ function getCartTotal($user_id)
               INNER JOIN tb_product p ON k.product_id = p.product_id
               WHERE k.user_id = ? AND k.is_payed = '2'";
     $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        error_log("Prepare failed: " . mysqli_error($conn));
+        return 0;
+    }
+
     mysqli_stmt_bind_param($stmt, "i", $user_id);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
     $total = mysqli_fetch_assoc($result)['total'];
     mysqli_stmt_close($stmt);
 
+    error_log("Cart total: $total");
     return $total ? $total : 0;
 }
 

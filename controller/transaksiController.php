@@ -49,7 +49,7 @@ function addTransaksi($data) {
         }
         
         // Cek apakah user memiliki item di keranjang
-        $cart_check = $conn->query("SELECT COUNT(*) as count FROM tb_keranjang WHERE user_id = " . $data['user_id']);
+        $cart_check = $conn->query("SELECT COUNT(*) as count FROM tb_keranjang WHERE user_id = " . $data['user_id'] . " AND is_payed = '2'");
         if (!$cart_check) {
             error_log("Error checking cart: " . $conn->error);
             return false;
@@ -96,6 +96,27 @@ function addTransaksi($data) {
         
         $stmt->close();
         
+        // Update keranjang items to mark them as part of this transaction
+        $update_cart = $conn->prepare("UPDATE tb_keranjang SET is_payed = '1', transaksi_id = ? WHERE user_id = ? AND is_payed = '2'");
+        if (!$update_cart) {
+            error_log("Prepare update cart failed: " . $conn->error);
+            $conn->rollback();
+            return false;
+        }
+        
+        $update_cart->bind_param("ii", $transaksi_id, $user_id);
+        $cart_result = $update_cart->execute();
+        
+        if (!$cart_result) {
+            error_log("Update cart failed: " . $update_cart->error);
+            $conn->rollback();
+            return false;
+        }
+        
+        $affected_rows = $update_cart->affected_rows;
+        error_log("Updated $affected_rows cart items to transaction ID: $transaksi_id");
+        $update_cart->close();
+        
         // Commit transaksi
         $conn->commit();
         error_log("Transaction committed");
@@ -119,7 +140,15 @@ function getTransaksiByUserId($id) {
     global $conn;
     
     try {
-        $stmt = $conn->prepare("SELECT * FROM tb_transaksi WHERE user_id = ?");
+        // Improved query to get transaction details with product information
+        $sql = "SELECT t.*, k.qty, p.product_name, p.product_price 
+                FROM tb_transaksi t
+                JOIN tb_keranjang k ON t.transaksi_id = k.transaksi_id
+                JOIN tb_product p ON k.product_id = p.product_id
+                WHERE t.user_id = ?
+                ORDER BY t.transaksi_id DESC";
+                
+        $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -143,17 +172,36 @@ function konfirmPayment($data) {
     
     // Basic validation
     if (empty($data['transaksi_id'])) {
+        error_log("Empty transaction ID in konfirmPayment");
         return false;
     }
     
     try {
-        // Update transaction status
-        $stmt = $conn->prepare("UPDATE tb_transaksi SET status_pembayaran = 1 WHERE transaksi_id = ?");
-        $stmt->bind_param("i", $data['transaksi_id']);
+        // Log untuk debugging
+        error_log("Confirming payment for transaction ID: " . $data['transaksi_id']);
+        
+        // Prepare payment data
+        $transaksi_id = (int)$data['transaksi_id'];
+        $payment_proof = $data['payment_proof'] ?? null;
+        $payment_notes = $data['payment_notes'] ?? null;
+        
+        // Update transaction with payment proof
+        $sql = "UPDATE tb_transaksi SET 
+                status_pembayaran = 1, 
+                bukti_pembayaran = ?, 
+                catatan_pembayaran = ?, 
+                tanggal_pembayaran = NOW() 
+                WHERE transaksi_id = ?";
+                
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ssi", $payment_proof, $payment_notes, $transaksi_id);
         $success = $stmt->execute();
+        $affected = $stmt->affected_rows;
         $stmt->close();
         
-        return $success;
+        error_log("Payment confirmation result: " . ($success ? "Success" : "Failed") . ", Affected rows: $affected");
+        
+        return $success && $affected > 0;
         
     } catch (Exception $e) {
         error_log("Error confirming payment: " . $e->getMessage());

@@ -76,7 +76,7 @@ if (isset($_POST["login"])) {
     <div class="global-container">
         <div class="card login-form">
             <div class="card-body">
-                <h3 class="card-title text-center">Toko Media</h3>
+                <h3 class="card-title text-center">Toko Komputer</h3>
                 <div class="card-text">
                     <?php if ($response) : ?>
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">

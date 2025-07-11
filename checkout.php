@@ -30,15 +30,15 @@ $response = (isset($_GET['r'])) ? $_GET['r'] : null;
 // Response handling
 $messages = [
     "trxsuccess" => "Transaction successful",
-    "trxfailed" => "Transaction failed",
-    "bankfalse" => "Please select payment method",
-    "emptycart" => "Shopping cart is empty"
+    "trxfailed"  => "Transaction failed",
+    "bankfalse"  => "Please select payment method",
+    "emptycart"  => "Shopping cart is empty"
 ];
 $response = isset($messages[$response]) ? $messages[$response] : null;
 
 // Process transaction
 if (isset($_POST['tambah-transaksi'])) {
-    // Debug log
+    // Logging input data untuk debugging
     error_log("=== CHECKOUT DEBUG ===");
     error_log("POST data: " . print_r($_POST, true));
     error_log("User ID: $user_id");
@@ -51,11 +51,13 @@ if (isset($_POST['tambah-transaksi'])) {
         exit();
     }
 
-    // Simplified transaction data
-    $transaction_data = [
-        'user_id' => (int)$user_id,
-        'bank_id' => (int)$_POST['bank_id']
-    ];
+// Modify the transaction data preparation:
+$transaction_data = [
+    'user_id' => (int)$user_id,
+    'bank_id' => (int)$_POST['bank_id'],
+    'transaksi_alamat' => $_POST['alamat_pembeli'],
+    'keranjang_grup' => $myCart[0]['keranjang_id'] // Or get proper cart group ID
+];
     error_log("Transaction data: " . print_r($transaction_data, true));
 
     // Process transaction
@@ -74,9 +76,6 @@ if (isset($_POST['tambah-transaksi'])) {
 }
 ?>
 <!DOCTYPE html>
-<!-- HTML content remains the same -->
-?>
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -89,7 +88,6 @@ if (isset($_POST['tambah-transaksi'])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/limonte-sweetalert2/8.11.8/sweetalert2.min.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/bs4/dt-1.10.25/datatables.min.css" />
 </head>
-
 <body id="home">
     <!-- navbar -->
     <?php include './partials/navbar.php'; ?>
@@ -203,8 +201,6 @@ if (isset($_POST['tambah-transaksi'])) {
         $(document).ready(function() {
             // Form validation
             $('#checkoutForm').submit(function(e) {
-                console.log('Form submitted');
-                
                 const bankId = $('#bank_id').val();
                 if (bankId === "0") {
                     e.preventDefault();
