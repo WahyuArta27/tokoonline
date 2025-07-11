@@ -1,5 +1,6 @@
 <?php
 require_once './database/koneksi.php';
+require_once __DIR__ . '/../database/koneksi.php';
 
 function addTransaksi($data) {
     global $conn;
@@ -164,6 +165,115 @@ function getTransaksiByUserId($id) {
     } catch (Exception $e) {
         error_log("Error fetching transactions: " . $e->getMessage());
         return [];
+    }
+}
+
+function getTransaksiFilter($tgl_awal, $tgl_akhir = null) {
+    global $conn;
+    
+    try {
+        // Validasi format tanggal
+        if (!DateTime::createFromFormat('Y-m-d', $tgl_awal)) {
+            throw new Exception("Format tanggal awal tidak valid");
+        }
+        
+        if ($tgl_akhir && !DateTime::createFromFormat('Y-m-d', $tgl_akhir)) {
+            throw new Exception("Format tanggal akhir tidak valid");
+        }
+
+        $sql = "SELECT 
+                    t.transaksi_id,
+                    t.tanggal_transaksi,
+                    t.status_pembayaran,
+                    k.qty,
+                    p.product_id,
+                    p.product_name,
+                    p.product_price,
+                    u.user_id,
+                    u.fullname,
+                    b.bank_id,
+                    b.nama_bank,
+                    b.no_bank
+                FROM tb_transaksi t
+                JOIN tb_keranjang k ON t.transaksi_id = k.transaksi_id
+                JOIN tb_product p ON k.product_id = p.product_id
+                JOIN tb_user u ON t.user_id = u.user_id
+                LEFT JOIN tb_bank b ON t.bank_id = b.bank_id
+                WHERE DATE(t.tanggal_transaksi) >= ?";
+        
+        $params = [$tgl_awal];
+        
+        if ($tgl_akhir) {
+            $sql .= " AND DATE(t.tanggal_transaksi) <= ?";
+            $params[] = $tgl_akhir;
+        }
+        
+        $sql .= " ORDER BY t.tanggal_transaksi DESC";
+        
+        $stmt = mysqli_prepare($conn, $sql);
+        if (!$stmt) {
+            throw new Exception("Gagal mempersiapkan statement: " . mysqli_error($conn));
+        }
+        
+        // Bind parameters
+        $types = str_repeat('s', count($params));
+        mysqli_stmt_bind_param($stmt, $types, ...$params);
+        
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Gagal mengeksekusi query: " . mysqli_stmt_error($stmt));
+        }
+        
+        $result = mysqli_stmt_get_result($stmt);
+        $transactions = [];
+        
+        while ($row = mysqli_fetch_assoc($result)) {
+            $transactions[] = $row;
+        }
+        
+        mysqli_stmt_close($stmt);
+        return $transactions;
+        
+    } catch (Exception $e) {
+        error_log("Error in getTransaksiFilter: " . $e->getMessage());
+        return [];
+    }
+}
+
+function getTotalPendapatan($tgl_awal, $tgl_akhir = null) {
+    global $conn;
+    
+    try {
+        $sql = "SELECT SUM(p.product_price * k.qty) as total
+                FROM tb_transaksi t
+                JOIN tb_keranjang k ON t.transaksi_id = k.transaksi_id
+                JOIN tb_product p ON k.product_id = p.product_id
+                WHERE DATE(t.tanggal_transaksi) >= ?";
+        
+        $params = [$tgl_awal];
+        
+        if ($tgl_akhir) {
+            $sql .= " AND DATE(t.tanggal_transaksi) <= ?";
+            $params[] = $tgl_akhir;
+        }
+        
+        $stmt = mysqli_prepare($conn, $sql);
+        if (!$stmt) {
+            throw new Exception("Gagal mempersiapkan statement");
+        }
+        
+        $types = str_repeat('s', count($params));
+        mysqli_stmt_bind_param($stmt, $types, ...$params);
+        
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        $row = mysqli_fetch_assoc($result);
+        
+        mysqli_stmt_close($stmt);
+        return $row['total'] ?? 0;
+        
+    } catch (Exception $e) {
+        error_log("Error in getTotalPendapatan: " . $e->getMessage());
+        return 0;
     }
 }
 
